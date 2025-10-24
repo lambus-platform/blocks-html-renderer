@@ -2,27 +2,11 @@ import { expect } from '@jest/globals'
 
 import { Node, renderBlock } from '../src'
 
-type TextInlineNodeFixture = {
-  type: 'text';
-  text: string;
-  bold?: boolean;
-  italic?: boolean;
-  underline?: boolean;
-  strikethrough?: boolean;
-  code?: boolean;
-};
-
-type ListItemFixture = {
-  type: 'list-item';
-  children: TextInlineNodeFixture[];
-};
-
-type ListBlockFixture = {
-  type: 'list';
-  format: 'ordered' | 'unordered';
-  children: Array<ListItemFixture | ListBlockFixture>;
-  indentLevel?: number;
-};
+type ListBlockNode = Extract<Node, { type: 'list' }>;
+type ListBlockChild = ListBlockNode['children'][number];
+type ListItemNode = Extract<ListBlockChild, { type: 'list-item' }>;
+type InlineChildNode = ListItemNode['children'][number];
+type TextInlineNode = Extract<InlineChildNode, { type: 'text' }>;
 
 type NestedListTestCase = {
   name: string;
@@ -30,29 +14,27 @@ type NestedListTestCase = {
   expectedHTML: string;
 };
 
-const textNode = (text: string, formatting: Partial<Omit<TextInlineNodeFixture, 'type' | 'text'>> = {}): TextInlineNodeFixture => ({
+const textNode = (
+  text: string,
+  formatting: Partial<Omit<TextInlineNode, 'type' | 'text'>> = {},
+) => ({
   type: 'text',
   text,
   ...formatting,
-});
+}) satisfies TextInlineNode;
 
-const listItem = (children: TextInlineNodeFixture[]): ListItemFixture => ({
+const listItem = (children: InlineChildNode[]) => ({
   type: 'list-item',
   children,
-});
+}) satisfies ListItemNode;
 
-const listBlock = (
-  format: 'ordered' | 'unordered',
-  children: Array<ListItemFixture | ListBlockFixture>,
-  indentLevel?: number,
-): ListBlockFixture => ({
+const listBlock = (format: ListBlockNode['format'], children: ListBlockChild[]) => ({
   type: 'list',
   format,
   children,
-  ...(indentLevel !== undefined ? { indentLevel } : {}),
-});
+}) satisfies ListBlockNode;
 
-const wrapBlock = (block: ListBlockFixture): Node[] => [block] as unknown as Node[];
+const wrapBlock = (block: ListBlockNode) => ([block]) satisfies Node[];
 
 const cases: NestedListTestCase[] = [
   {
@@ -98,7 +80,7 @@ const cases: NestedListTestCase[] = [
     expectedHTML: '<ul><li>Bullet Point 1<ol><li>Numbered Sub-item A</li><li>Numbered Sub-item B</li></ol></li><li>Bullet Point 2</li></ul>',
   },
   {
-    name: 'Test Case 4: Deep Nesting with indentLevel',
+    name: 'Test Case 4: Deep Nesting',
     block: wrapBlock(
       listBlock('unordered', [
         listItem([textNode('Level 1 Item')]),
@@ -106,9 +88,9 @@ const cases: NestedListTestCase[] = [
           listItem([textNode('Level 2 Item')]),
           listBlock('unordered', [
             listItem([textNode('Level 3 Item')]),
-          ], 2),
-        ], 1),
-      ], 0),
+          ]),
+        ]),
+      ]),
     ),
     expectedHTML: '<ul><li>Level 1 Item<ul><li>Level 2 Item<ul><li>Level 3 Item</li></ul></li></ul></li></ul>',
   },
